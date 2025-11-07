@@ -1,0 +1,46 @@
+server:
+  port: 8081
+  debug: true
+  name: "user-service"
+
+database:
+  host: "postgres"
+  port: 5432
+  user: "llmops"
+  password: "llmops123"
+  dbname: "llmops"
+  sslmode: "disable"
+  max_open_conns: 100
+  max_idle_conns: 10
+  conn_max_lifetime: "1h"
+  conn_max_idle_time: "10m"
+
+redis:
+  addr: "redis:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "your-secret-key-change-in-production"
+  token_expiry: "24h"
+  refresh_expiry: "168h" # 7 days
+
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  file_path: ""
+  max_size: 100
+  max_backups: 3
+  max_age: 28
+
+consul:
+  host: "consul"
+  port: 8500
+  service_name: "user-service"
+  service_id: "user-service-1"
+  service_tags: ["user", "auth", "api"]
+  check_interval: "10s"
+  check_timeout: "5s"
+
+

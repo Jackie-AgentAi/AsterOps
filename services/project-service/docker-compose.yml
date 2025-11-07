@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: project-postgres
+    environment:
+      POSTGRES_DB: project_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - project-network
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: project-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - project-network
+
+  # Consul服务发现
+  consul:
+    image: consul:1.16
+    container_name: project-consul
+    command: agent -server -bootstrap-expect=1 -client=0.0.0.0 -ui
+    ports:
+      - "8500:8500"
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - project-network
+
+  # 项目管理服务
+  project-service:
+    build: .
+    container_name: project-service
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=project_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - postgres
+      - redis
+      - consul
+    networks:
+      - project-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  consul_data:
+
+networks:
+  project-network:
+    driver: bridge

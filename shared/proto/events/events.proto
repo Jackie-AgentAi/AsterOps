@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "github.com/llmops/shared/proto/events";
+
+import "google/protobuf/timestamp.proto";
+
+// 事件类型枚举
+enum EventType {
+  USER_CREATED = 0;
+  USER_UPDATED = 1;
+  USER_DELETED = 2;
+  MODEL_CREATED = 3;
+  MODEL_UPDATED = 4;
+  MODEL_DELETED = 5;
+  INFERENCE_STARTED = 6;
+  INFERENCE_COMPLETED = 7;
+  INFERENCE_FAILED = 8;
+  COST_RECORDED = 9;
+  BUDGET_EXCEEDED = 10;
+  ALERT_TRIGGERED = 11;
+  PROJECT_CREATED = 12;
+  PROJECT_UPDATED = 13;
+  PROJECT_DELETED = 14;
+}
+
+// 事件消息
+message Event {
+  string id = 1;
+  EventType type = 2;
+  string source = 3;
+  string tenant_id = 4;
+  string user_id = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string data = 7; // JSON格式的事件数据
+  map<string, string> metadata = 8;
+}
+
+// 事件发布请求
+message PublishEventRequest {
+  Event event = 1;
+}
+
+// 事件发布响应
+message PublishEventResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// 事件订阅请求
+message SubscribeEventRequest {
+  repeated EventType event_types = 1;
+  string tenant_id = 2;
+}
+
+// 事件流
+message EventStream {
+  Event event = 1;
+}
+
+// 事件服务
+service EventService {
+  rpc PublishEvent(PublishEventRequest) returns (PublishEventResponse);
+  rpc SubscribeEvents(SubscribeEventRequest) returns (stream EventStream);
+}
+
+
+

@@ -1,0 +1,130 @@
+# 生产环境日志配置
+# 适用于Python服务
+
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: '%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d %(funcName)s'
+  
+  detailed:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s:%(lineno)d'
+  
+  simple:
+    format: '%(levelname)s - %(message)s'
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: WARNING
+    formatter: json
+    stream: ext://sys.stdout
+
+  file_all:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /app/logs/application.log
+    maxBytes: 104857600  # 100MB
+    backupCount: 10
+    encoding: utf8
+
+  file_error:
+    class: logging.handlers.RotatingFileHandler
+    level: ERROR
+    formatter: json
+    filename: /app/logs/error.log
+    maxBytes: 52428800   # 50MB
+    backupCount: 10
+    encoding: utf8
+
+  file_access:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /app/logs/access.log
+    maxBytes: 104857600  # 100MB
+    backupCount: 7
+    encoding: utf8
+
+  performance:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /app/logs/performance.log
+    maxBytes: 52428800   # 50MB
+    backupCount: 5
+    encoding: utf8
+
+  security:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: /app/logs/security.log
+    maxBytes: 52428800   # 50MB
+    backupCount: 10
+    encoding: utf8
+
+loggers:
+  # 应用日志
+  app:
+    level: INFO
+    handlers: [console, file_all, file_error]
+    propagate: false
+
+  # 访问日志
+  access:
+    level: INFO
+    handlers: [file_access]
+    propagate: false
+
+  # 性能日志
+  performance:
+    level: INFO
+    handlers: [performance]
+    propagate: false
+
+  # 安全日志
+  security:
+    level: INFO
+    handlers: [security, file_error]
+    propagate: false
+
+  # 健康检查日志
+  health:
+    level: INFO
+    handlers: [console]
+    propagate: false
+
+  # 第三方库日志
+  uvicorn:
+    level: WARNING
+    handlers: [console, file_all]
+    propagate: false
+
+  fastapi:
+    level: WARNING
+    handlers: [console, file_all]
+    propagate: false
+
+  sqlalchemy:
+    level: WARNING
+    handlers: [console, file_all]
+    propagate: false
+
+  redis:
+    level: WARNING
+    handlers: [console, file_all]
+    propagate: false
+
+  prometheus:
+    level: WARNING
+    handlers: [console, file_all]
+    propagate: false
+
+  # 根日志配置
+  root:
+    level: WARNING
+    handlers: [console, file_all, file_error]

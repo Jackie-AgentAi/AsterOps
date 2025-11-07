@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  user-service:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=user_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - postgres
+      - redis
+      - consul
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=user_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  consul:
+    image: consul:1.16
+    ports:
+      - "8500:8500"
+    command: consul agent -server -bootstrap-expect=1 -ui -client=0.0.0.0
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  consul_data:
+
+networks:
+  llmops-network:
+    driver: bridge
+
+
+

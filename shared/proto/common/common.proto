@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/llmops/shared/proto/common";
+
+// 通用响应结构
+message Response {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
+  int32 code = 4;
+}
+
+// 分页请求
+message PaginationRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+}
+
+// 分页响应
+message PaginationResponse {
+  int32 offset = 1;
+  int32 limit = 2;
+  int32 total = 3;
+}
+
+// 用户上下文
+message UserContext {
+  string user_id = 1;
+  string tenant_id = 2;
+  repeated string roles = 3;
+  string request_id = 4;
+}
+
+// 服务健康检查
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+  string message = 2;
+}
+
+
+

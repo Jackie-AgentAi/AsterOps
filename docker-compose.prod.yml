@@ -1,0 +1,671 @@
+# LLMOps生产环境Docker Compose配置
+version: '3.8'
+
+# 环境变量文件
+# env_file:
+#   - .env.production
+
+# 网络配置
+networks:
+  llmops-prod-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# 卷配置
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  consul_data:
+    driver: local
+  minio_data:
+    driver: local
+  model_storage:
+    driver: local
+  model_uploads:
+    driver: local
+  inference_cache:
+    driver: local
+  inference_models:
+    driver: local
+  inference_logs:
+    driver: local
+  monitoring_data:
+    driver: local
+  monitoring_logs:
+    driver: local
+  grafana_data:
+    driver: local
+  backup_data:
+    driver: local
+  ssl_certs:
+    driver: local
+
+services:
+  # ===================
+  # 基础设施服务
+  # ===================
+  
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: llmops-postgres-prod
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/migrations/init-databases-prod.sh:/docker-entrypoint-initdb.d/init-databases-prod.sh:ro
+      - ./scripts/migrations/sql:/docker-entrypoint-initdb.d/sql:ro
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: llmops-redis-prod
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # Consul服务发现
+  consul:
+    image: consul:1.15.4
+    container_name: llmops-consul-prod
+    command: consul agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -data-dir=/consul/data -encrypt=${CONSUL_ENCRYPT_KEY}
+    ports:
+      - "8500:8500"
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # MinIO对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: llmops-minio-prod
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ===================
+  # API网关
+  # ===================
+
+  # API网关服务
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile.prod
+    container_name: llmops-api-gateway-prod
+    ports:
+      - "8087:8087"
+    env_file:
+      - ./configs/env/api-gateway.env
+    volumes:
+      - ./configs/env/api-gateway.env:/app/configs/api-gateway.env:ro
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ===================
+  # 微服务
+  # ===================
+
+  # 用户权限服务
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-user-service-prod
+    ports:
+      - "8081:8081"
+    env_file:
+      - ./configs/env/user-service.env
+    volumes:
+      - ./configs/env/user-service.env:/app/configs/user-service.env:ro
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/main", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # 项目管理服务
+  project-service:
+    build:
+      context: ./services/project-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-project-service-prod
+    ports:
+      - "8082:8082"
+    env_file:
+      - ./configs/env/project-service.env
+    volumes:
+      - ./configs/env/project-service.env:/app/configs/project-service.env:ro
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/main", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # 模型管理服务
+  model-service:
+    build:
+      context: ./services/model-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-model-service-prod
+    ports:
+      - "8083:8083"
+    env_file:
+      - ./configs/env/model-service.env
+    volumes:
+      - model_storage:/app/storage
+      - model_uploads:/app/uploads
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # 推理服务
+  inference-service:
+    build:
+      context: ./services/inference-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-inference-service-prod
+    ports:
+      - "8084:8084"
+    env_file:
+      - ./configs/env/inference-service.env
+    volumes:
+      - inference_cache:/app/cache
+      - inference_models:/app/models
+      - inference_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "10"
+
+  # 成本管理服务
+  cost-service:
+    build:
+      context: ./services/cost-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-cost-service-prod
+    ports:
+      - "8085:8085"
+    env_file:
+      - ./configs/env/cost-service.env
+    volumes:
+      - ./configs/env/cost-service.env:/app/configs/cost-service.env:ro
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/main", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # 监控服务
+  monitoring-service:
+    build:
+      context: ./services/monitoring-service
+      dockerfile: Dockerfile.prod
+    container_name: llmops-monitoring-service-prod
+    ports:
+      - "8086:8086"
+    env_file:
+      - ./configs/env/monitoring-service.env
+    volumes:
+      - monitoring_data:/app/data
+      - monitoring_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ===================
+  # 监控系统
+  # ===================
+
+  # Prometheus监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: llmops-prometheus-prod
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/rules:/etc/prometheus/rules:ro
+      - monitoring_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME}'
+      - '--web.enable-lifecycle'
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # Grafana仪表板
+  grafana:
+    image: grafana/grafana:latest
+    container_name: llmops-grafana-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_SECRET_KEY=grafana_secret_key_prod_2024
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://${MONITORING_DOMAIN}
+      - GF_SERVER_ENABLE_GZIP=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ===================
+  # 反向代理
+  # ===================
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: llmops-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ssl_certs:/etc/ssl/certs:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - api-gateway
+      - user-service
+      - project-service
+      - model-service
+      - inference-service
+      - cost-service
+      - monitoring-service
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ===================
+  # 备份服务
+  # ===================
+
+  # 备份服务
+  backup:
+    image: postgres:15-alpine
+    container_name: llmops-backup-prod
+    environment:
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - backup_data:/backup
+      - ./scripts/backup-prod.sh:/backup.sh:ro
+    command: ["sh", "-c", "while true; do sleep 86400; done"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - llmops-prod-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"

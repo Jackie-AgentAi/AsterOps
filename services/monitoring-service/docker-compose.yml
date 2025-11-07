@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  monitoring-service:
+    build: .
+    ports:
+      - "8086:8086"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=monitoring_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - PROMETHEUS_HOST=prometheus
+      - PROMETHEUS_PORT=9090
+      - GRAFANA_HOST=grafana
+      - GRAFANA_PORT=3000
+    volumes:
+      - monitoring_data:/app/data
+      - monitoring_logs:/app/logs
+      - monitoring_configs:/app/configs
+    depends_on:
+      - postgres
+      - redis
+      - consul
+      - prometheus
+      - grafana
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=monitoring_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  consul:
+    image: consul:1.16
+    ports:
+      - "8500:8500"
+    command: consul agent -server -bootstrap-expect=1 -ui -client=0.0.0.0
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./configs/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - llmops-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  consul_data:
+  prometheus_data:
+  grafana_data:
+  monitoring_data:
+  monitoring_logs:
+  monitoring_configs:
+
+networks:
+  llmops-network:
+    driver: bridge
+
+
+

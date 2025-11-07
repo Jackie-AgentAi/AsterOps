@@ -1,0 +1,145 @@
+groups:
+  - name: llmops-alerts
+    rules:
+      # 服务可用性告警
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
+
+      # 高响应时间告警
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds{quantile="0.95"} > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time for {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.job }}"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate for {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+
+      # 磁盘使用率告警
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is {{ $value | humanizePercentage }}"
+
+      # 数据库连接数告警
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections"
+
+      # Redis内存使用率告警
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+      # 容器重启告警
+      - alert: ContainerRestart
+        expr: increase(container_start_time_seconds[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restarted"
+          description: "Container {{ $labels.name }} has restarted"
+
+      # 推理服务GPU使用率告警
+      - alert: HighGPUUsage
+        expr: nvidia_utilization_gpu > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU usage"
+          description: "GPU utilization is {{ $value }}%"
+
+      # 推理服务GPU内存使用率告警
+      - alert: HighGPUMemoryUsage
+        expr: nvidia_memory_used_bytes / nvidia_memory_total_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High GPU memory usage"
+          description: "GPU memory usage is {{ $value | humanizePercentage }}"
+
+      # 成本预算告警
+      - alert: BudgetExceeded
+        expr: cost_records_amount_total > budget_limit_total
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Budget exceeded"
+          description: "Project {{ $labels.project_id }} has exceeded its budget"
+
+      # 模型推理延迟告警
+      - alert: HighInferenceLatency
+        expr: inference_request_duration_seconds{quantile="0.95"} > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High inference latency"
+          description: "95th percentile inference latency is {{ $value }}s"
+
+      # 模型推理失败率告警
+      - alert: HighInferenceFailureRate
+        expr: rate(inference_requests_total{status="failed"}[5m]) / rate(inference_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High inference failure rate"
+          description: "Inference failure rate is {{ $value | humanizePercentage }}"
+
+
+

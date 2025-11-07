@@ -1,0 +1,168 @@
+name: Frontend Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/admin-dashboard/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: frontend/admin-dashboard
+      run: npm ci
+      
+    - name: Run unit tests
+      working-directory: frontend/admin-dashboard
+      run: npm run test:run
+      
+    - name: Generate coverage report
+      working-directory: frontend/admin-dashboard
+      run: npm run test:coverage
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: frontend/admin-dashboard/coverage/lcov.info
+        flags: frontend
+        name: frontend-coverage
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/admin-dashboard/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: frontend/admin-dashboard
+      run: npm ci
+      
+    - name: Run integration tests
+      working-directory: frontend/admin-dashboard
+      run: npm run test:run -- tests/integration
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/admin-dashboard/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: frontend/admin-dashboard
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      working-directory: frontend/admin-dashboard
+      run: npx playwright install --with-deps
+      
+    - name: Run E2E tests
+      working-directory: frontend/admin-dashboard
+      run: npm run test:e2e
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-report
+        path: frontend/admin-dashboard/playwright-report/
+        retention-days: 30
+
+  build-test:
+    name: Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/admin-dashboard/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: frontend/admin-dashboard
+      run: npm ci
+      
+    - name: Type check
+      working-directory: frontend/admin-dashboard
+      run: npm run type-check
+      
+    - name: Lint
+      working-directory: frontend/admin-dashboard
+      run: npm run lint
+      
+    - name: Build
+      working-directory: frontend/admin-dashboard
+      run: npm run build
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-files
+        path: frontend/admin-dashboard/dist/
+        retention-days: 7
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, e2e-tests, build-test]
+    if: always()
+    
+    steps:
+    - name: Test Summary
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build Test | ${{ needs.build-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "Coverage report is available in the unit-tests job artifacts." >> $GITHUB_STEP_SUMMARY
+
+
+
+
+
+
+
+
+

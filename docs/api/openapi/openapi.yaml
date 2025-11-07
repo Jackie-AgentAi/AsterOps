@@ -1,0 +1,2171 @@
+openapi: 3.0.3
+info:
+  title: LLMOps Platform API
+  description: |
+    LLMOps平台API提供用户管理、项目管理、模型管理、推理服务、成本管理、监控日志、评测管理和知识库管理等核心功能。
+    
+    ## 认证方式
+    - JWT Token认证
+    - API Key认证
+    - OAuth 2.0认证
+    
+    ## 限流策略
+    - 用户限流: 1000 requests/hour
+    - IP限流: 5000 requests/hour
+    - API限流: 10000 requests/hour
+    
+    ## 错误处理
+    所有API都返回统一的错误格式，包含错误码、错误信息和详细信息。
+  version: 1.0.0
+  contact:
+    name: LLMOps Platform Support
+    email: support@llmops.com
+    url: https://llmops.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.llmops.com/v1
+    description: 生产环境
+  - url: https://api-test.llmops.com/v1
+    description: 测试环境
+  - url: https://api-dev.llmops.com/v1
+    description: 开发环境
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # 用户管理API
+  /users/register:
+    post:
+      tags:
+        - 用户管理
+      summary: 用户注册
+      description: 注册新用户
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /users/login:
+    post:
+      tags:
+        - 用户管理
+      summary: 用户登录
+      description: 用户登录获取访问令牌
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me:
+    get:
+      tags:
+        - 用户管理
+      summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users:
+    get:
+      tags:
+        - 用户管理
+      summary: 获取用户列表
+      description: 获取用户列表，支持分页和过滤
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+
+  # 项目管理API
+  /projects:
+    post:
+      tags:
+        - 项目管理
+      summary: 创建项目
+      description: 创建新项目
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    get:
+      tags:
+        - 项目管理
+      summary: 获取项目列表
+      description: 获取项目列表，支持分页和过滤
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+
+  /projects/{id}:
+    get:
+      tags:
+        - 项目管理
+      summary: 获取项目详情
+      description: 获取指定项目的详细信息
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - 项目管理
+      summary: 更新项目
+      description: 更新项目信息
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectUpdateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - 项目管理
+      summary: 删除项目
+      description: 删除指定项目
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # 模型管理API
+  /models:
+    post:
+      tags:
+        - 模型管理
+      summary: 注册模型
+      description: 注册新模型
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelRegistrationRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelRegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    get:
+      tags:
+        - 模型管理
+      summary: 获取模型列表
+      description: 获取模型列表，支持分页和过滤
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelListResponse'
+
+  /models/{id}:
+    get:
+      tags:
+        - 模型管理
+      summary: 获取模型详情
+      description: 获取指定模型的详细信息
+      parameters:
+        - $ref: '#/components/parameters/ModelIdParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /models/{id}/versions:
+    post:
+      tags:
+        - 模型管理
+      summary: 创建模型版本
+      description: 为指定模型创建新版本
+      parameters:
+        - $ref: '#/components/parameters/ModelIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelVersionCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelVersionCreateResponse'
+
+    get:
+      tags:
+        - 模型管理
+      summary: 获取模型版本列表
+      description: 获取指定模型的版本列表
+      parameters:
+        - $ref: '#/components/parameters/ModelIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelVersionListResponse'
+
+  # 推理服务API
+  /inference/chat:
+    post:
+      tags:
+        - 推理服务
+      summary: 单次推理
+      description: 发送单次推理请求
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceChatRequest'
+      responses:
+        '200':
+          description: 推理成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceChatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /inference/batch:
+    post:
+      tags:
+        - 推理服务
+      summary: 批量推理
+      description: 发送批量推理请求
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceBatchRequest'
+      responses:
+        '200':
+          description: 推理成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceBatchResponse'
+
+  /inference/stream:
+    post:
+      tags:
+        - 推理服务
+      summary: 流式推理
+      description: 发送流式推理请求
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceStreamRequest'
+      responses:
+        '200':
+          description: 流式推理成功
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events流
+
+  /inference/configs:
+    get:
+      tags:
+        - 推理服务
+      summary: 获取推理配置
+      description: 获取推理服务配置
+      parameters:
+        - name: model
+          in: query
+          description: 模型过滤
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: 环境过滤
+          schema:
+            type: string
+            enum: [development, staging, production]
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceConfigListResponse'
+
+    post:
+      tags:
+        - 推理服务
+      summary: 创建推理配置
+      description: 创建推理服务配置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceConfigCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceConfigCreateResponse'
+
+  /inference/cache/status:
+    get:
+      tags:
+        - 推理服务
+      summary: 获取缓存状态
+      description: 获取推理缓存状态
+      parameters:
+        - name: model
+          in: query
+          description: 模型过滤
+          schema:
+            type: string
+        - name: user
+          in: query
+          description: 用户过滤
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheStatusResponse'
+
+  /inference/metrics:
+    get:
+      tags:
+        - 推理服务
+      summary: 获取推理指标
+      description: 获取推理服务指标
+      parameters:
+        - name: start_time
+          in: query
+          description: 开始时间
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: 结束时间
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          description: 时间粒度
+          schema:
+            type: string
+            enum: [1m, 5m, 1h, 1d]
+        - name: model
+          in: query
+          description: 模型过滤
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceMetricsResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Token认证
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key认证
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: 页码
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPageParam:
+      name: per_page
+      in: query
+      description: 每页数量
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SearchParam:
+      name: search
+      in: query
+      description: 搜索关键词
+      schema:
+        type: string
+    SortParam:
+      name: sort
+      in: query
+      description: 排序字段
+      schema:
+        type: string
+        default: created_at:desc
+    ProjectIdParam:
+      name: id
+      in: path
+      required: true
+      description: 项目ID
+      schema:
+        type: integer
+    ModelIdParam:
+      name: id
+      in: path
+      required: true
+      description: 模型ID
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未授权访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 资源冲突
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: 请求频率超限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # 通用响应格式
+    BaseResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+        - meta
+      properties:
+        code:
+          type: integer
+          description: 响应状态码
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          description: 响应数据
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ResponseMeta:
+      type: object
+      required:
+        - request_id
+        - timestamp
+        - version
+      properties:
+        request_id:
+          type: string
+          description: 请求ID
+        timestamp:
+          type: string
+          format: date-time
+          description: 响应时间戳
+        version:
+          type: string
+          description: API版本
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+        - error
+        - meta
+      properties:
+        code:
+          type: integer
+          description: 错误状态码
+        message:
+          type: string
+          description: 错误消息
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ErrorDetail:
+      type: object
+      required:
+        - type
+        - details
+      properties:
+        type:
+          type: string
+          description: 错误类型
+        details:
+          type: string
+          description: 错误详情
+        field:
+          type: string
+          description: 错误字段
+        value:
+          type: string
+          description: 错误值
+
+    # 分页响应
+    PaginationResponse:
+      type: object
+      required:
+        - page
+        - per_page
+        - total
+        - total_pages
+        - has_next
+        - has_prev
+      properties:
+        page:
+          type: integer
+          description: 当前页码
+        per_page:
+          type: integer
+          description: 每页数量
+        total:
+          type: integer
+          description: 总数量
+        total_pages:
+          type: integer
+          description: 总页数
+        has_next:
+          type: boolean
+          description: 是否有下一页
+        has_prev:
+          type: boolean
+          description: 是否有上一页
+
+    # 用户相关Schema
+    UserRegistrationRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        username:
+          type: string
+          description: 用户名
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+        password:
+          type: string
+          description: 密码
+          minLength: 8
+        first_name:
+          type: string
+          description: 名字
+          maxLength: 50
+        last_name:
+          type: string
+          description: 姓氏
+          maxLength: 50
+        phone:
+          type: string
+          description: 手机号
+        organization_id:
+          type: integer
+          description: 组织ID
+        invitation_code:
+          type: string
+          description: 邀请码
+
+    UserRegistrationResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                verification_token:
+                  type: string
+                  description: 验证令牌
+
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+        password:
+          type: string
+          description: 密码
+        remember_me:
+          type: boolean
+          description: 记住我
+          default: false
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+
+    UserLoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                tokens:
+                  $ref: '#/components/schemas/AuthTokens'
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                  description: 用户权限
+                roles:
+                  type: array
+                  items:
+                    type: string
+                  description: 用户角色
+
+    UserInfoResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                organization:
+                  $ref: '#/components/schemas/Organization'
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                roles:
+                  type: array
+                  items:
+                    type: string
+
+    UserListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                users:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/User'
+                pagination:
+                  $ref: '#/components/schemas/PaginationResponse'
+
+    User:
+      type: object
+      required:
+        - id
+        - uuid
+        - username
+        - email
+        - first_name
+        - last_name
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 用户ID
+        uuid:
+          type: string
+          format: uuid
+          description: 用户UUID
+        username:
+          type: string
+          description: 用户名
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+        first_name:
+          type: string
+          description: 名字
+        last_name:
+          type: string
+          description: 姓氏
+        phone:
+          type: string
+          description: 手机号
+        avatar_url:
+          type: string
+          format: uri
+          description: 头像URL
+        status:
+          type: string
+          enum: [active, inactive, pending_verification, suspended]
+          description: 用户状态
+        email_verified:
+          type: boolean
+          description: 邮箱是否已验证
+        phone_verified:
+          type: boolean
+          description: 手机号是否已验证
+        two_factor_enabled:
+          type: boolean
+          description: 是否启用双因素认证
+        last_login_at:
+          type: string
+          format: date-time
+          description: 最后登录时间
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    DeviceInfo:
+      type: object
+      properties:
+        device_type:
+          type: string
+          enum: [web, mobile, desktop]
+          description: 设备类型
+        user_agent:
+          type: string
+          description: 用户代理
+        ip_address:
+          type: string
+          format: ipv4
+          description: IP地址
+
+    AuthTokens:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+        - token_type
+      properties:
+        access_token:
+          type: string
+          description: 访问令牌
+        refresh_token:
+          type: string
+          description: 刷新令牌
+        expires_in:
+          type: integer
+          description: 过期时间（秒）
+        token_type:
+          type: string
+          enum: [Bearer]
+          description: 令牌类型
+
+    Organization:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - type
+        - status
+      properties:
+        id:
+          type: integer
+          description: 组织ID
+        name:
+          type: string
+          description: 组织名称
+        code:
+          type: string
+          description: 组织代码
+        type:
+          type: string
+          enum: [company, department, team]
+          description: 组织类型
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 组织状态
+
+    # 项目相关Schema
+    ProjectCreateRequest:
+      type: object
+      required:
+        - name
+        - code
+        - type
+      properties:
+        name:
+          type: string
+          description: 项目名称
+          maxLength: 200
+        code:
+          type: string
+          description: 项目代码
+          maxLength: 50
+        description:
+          type: string
+          description: 项目描述
+        type:
+          type: string
+          enum: [general, research, production, demo]
+          description: 项目类型
+        visibility:
+          type: string
+          enum: [private, internal, public]
+          description: 可见性
+          default: private
+        avatar_url:
+          type: string
+          format: uri
+          description: 头像URL
+        website_url:
+          type: string
+          format: uri
+          description: 网站URL
+        repository_url:
+          type: string
+          format: uri
+          description: 仓库URL
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+        settings:
+          type: object
+          description: 项目设置
+        metadata:
+          type: object
+          description: 元数据
+
+    ProjectCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                project:
+                  $ref: '#/components/schemas/Project'
+
+    ProjectListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                projects:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Project'
+                pagination:
+                  $ref: '#/components/schemas/PaginationResponse'
+
+    ProjectDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                project:
+                  $ref: '#/components/schemas/Project'
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 项目名称
+        description:
+          type: string
+          description: 项目描述
+        visibility:
+          type: string
+          enum: [private, internal, public]
+          description: 可见性
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+        settings:
+          type: object
+          description: 项目设置
+        metadata:
+          type: object
+          description: 元数据
+
+    ProjectUpdateResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                project:
+                  $ref: '#/components/schemas/Project'
+
+    Project:
+      type: object
+      required:
+        - id
+        - uuid
+        - name
+        - code
+        - type
+        - status
+        - visibility
+        - owner_id
+        - tenant_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 项目ID
+        uuid:
+          type: string
+          format: uuid
+          description: 项目UUID
+        name:
+          type: string
+          description: 项目名称
+        code:
+          type: string
+          description: 项目代码
+        description:
+          type: string
+          description: 项目描述
+        type:
+          type: string
+          enum: [general, research, production, demo]
+          description: 项目类型
+        status:
+          type: string
+          enum: [active, inactive, archived, deleted]
+          description: 项目状态
+        visibility:
+          type: string
+          enum: [private, internal, public]
+          description: 可见性
+        avatar_url:
+          type: string
+          format: uri
+          description: 头像URL
+        website_url:
+          type: string
+          format: uri
+          description: 网站URL
+        repository_url:
+          type: string
+          format: uri
+          description: 仓库URL
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+        settings:
+          type: object
+          description: 项目设置
+        metadata:
+          type: object
+          description: 元数据
+        owner_id:
+          type: integer
+          description: 所有者ID
+        tenant_id:
+          type: integer
+          description: 租户ID
+        organization_id:
+          type: integer
+          description: 组织ID
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    # 模型相关Schema
+    ModelRegistrationRequest:
+      type: object
+      required:
+        - name
+        - code
+        - type
+        - category
+        - framework
+      properties:
+        name:
+          type: string
+          description: 模型名称
+          maxLength: 200
+        code:
+          type: string
+          description: 模型代码
+          maxLength: 50
+        description:
+          type: string
+          description: 模型描述
+        type:
+          type: string
+          enum: [llm, embedding, classification, generation]
+          description: 模型类型
+        category:
+          type: string
+          description: 模型分类
+        framework:
+          type: string
+          description: 框架
+        base_model:
+          type: string
+          description: 基础模型
+        model_size:
+          type: string
+          description: 模型大小
+        precision:
+          type: string
+          enum: [fp16, fp32, int8, int4]
+          description: 精度
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+        metadata:
+          type: object
+          description: 元数据
+        settings:
+          type: object
+          description: 模型设置
+
+    ModelRegistrationResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                model:
+                  $ref: '#/components/schemas/Model'
+
+    ModelListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                models:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Model'
+                pagination:
+                  $ref: '#/components/schemas/PaginationResponse'
+
+    ModelDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                model:
+                  $ref: '#/components/schemas/Model'
+
+    ModelVersionCreateRequest:
+      type: object
+      required:
+        - version
+      properties:
+        version:
+          type: string
+          description: 版本号
+        description:
+          type: string
+          description: 版本描述
+        changelog:
+          type: array
+          items:
+            type: string
+          description: 变更日志
+        model_files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelFile'
+          description: 模型文件
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dependency'
+          description: 依赖
+        metadata:
+          type: object
+          description: 元数据
+
+    ModelVersionCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                version:
+                  $ref: '#/components/schemas/ModelVersion'
+
+    ModelVersionListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                versions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ModelVersion'
+                pagination:
+                  $ref: '#/components/schemas/PaginationResponse'
+
+    Model:
+      type: object
+      required:
+        - id
+        - uuid
+        - name
+        - code
+        - type
+        - category
+        - framework
+        - status
+        - owner_id
+        - project_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 模型ID
+        uuid:
+          type: string
+          format: uuid
+          description: 模型UUID
+        name:
+          type: string
+          description: 模型名称
+        code:
+          type: string
+          description: 模型代码
+        description:
+          type: string
+          description: 模型描述
+        type:
+          type: string
+          enum: [llm, embedding, classification, generation]
+          description: 模型类型
+        category:
+          type: string
+          description: 模型分类
+        framework:
+          type: string
+          description: 框架
+        base_model:
+          type: string
+          description: 基础模型
+        model_size:
+          type: string
+          description: 模型大小
+        precision:
+          type: string
+          enum: [fp16, fp32, int8, int4]
+          description: 精度
+        status:
+          type: string
+          enum: [active, inactive, archived, deleted]
+          description: 模型状态
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签
+        metadata:
+          type: object
+          description: 元数据
+        settings:
+          type: object
+          description: 模型设置
+        owner_id:
+          type: integer
+          description: 所有者ID
+        project_id:
+          type: integer
+          description: 项目ID
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    ModelVersion:
+      type: object
+      required:
+        - id
+        - uuid
+        - version
+        - status
+        - created_at
+      properties:
+        id:
+          type: integer
+          description: 版本ID
+        uuid:
+          type: string
+          format: uuid
+          description: 版本UUID
+        version:
+          type: string
+          description: 版本号
+        description:
+          type: string
+          description: 版本描述
+        changelog:
+          type: array
+          items:
+            type: string
+          description: 变更日志
+        status:
+          type: string
+          enum: [active, inactive, deprecated]
+          description: 版本状态
+        is_default:
+          type: boolean
+          description: 是否为默认版本
+        model_files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelFile'
+          description: 模型文件
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dependency'
+          description: 依赖
+        metadata:
+          type: object
+          description: 元数据
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+
+    ModelFile:
+      type: object
+      required:
+        - id
+        - name
+        - size
+        - checksum
+        - type
+      properties:
+        id:
+          type: integer
+          description: 文件ID
+        name:
+          type: string
+          description: 文件名
+        size:
+          type: integer
+          description: 文件大小（字节）
+        checksum:
+          type: string
+          description: 文件校验和
+        type:
+          type: string
+          enum: [weights, config, tokenizer, metadata]
+          description: 文件类型
+        description:
+          type: string
+          description: 文件描述
+        url:
+          type: string
+          format: uri
+          description: 文件URL
+        uploaded_at:
+          type: string
+          format: date-time
+          description: 上传时间
+
+    Dependency:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+          description: 依赖名称
+        version:
+          type: string
+          description: 依赖版本
+
+    # 推理服务相关Schema
+    InferenceChatRequest:
+      type: object
+      required:
+        - model
+        - messages
+      properties:
+        model:
+          type: string
+          description: 模型名称
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+          description: 消息列表
+        parameters:
+          $ref: '#/components/schemas/InferenceParameters'
+        stream:
+          type: boolean
+          description: 是否流式响应
+          default: false
+        user:
+          type: string
+          description: 用户标识
+        session_id:
+          type: string
+          description: 会话ID
+        request_id:
+          type: string
+          description: 请求ID
+
+    InferenceChatResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: 响应ID
+                object:
+                  type: string
+                  description: 对象类型
+                created:
+                  type: integer
+                  description: 创建时间戳
+                model:
+                  type: string
+                  description: 模型名称
+                choices:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Choice'
+                usage:
+                  $ref: '#/components/schemas/Usage'
+                cost:
+                  $ref: '#/components/schemas/Cost'
+                metadata:
+                  $ref: '#/components/schemas/InferenceMetadata'
+
+    InferenceBatchRequest:
+      type: object
+      required:
+        - model
+        - requests
+      properties:
+        model:
+          type: string
+          description: 模型名称
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchRequest'
+          description: 批量请求列表
+        user:
+          type: string
+          description: 用户标识
+        request_id:
+          type: string
+          description: 请求ID
+
+    InferenceBatchResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: 响应ID
+                object:
+                  type: string
+                  description: 对象类型
+                created:
+                  type: integer
+                  description: 创建时间戳
+                model:
+                  type: string
+                  description: 模型名称
+                results:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BatchResult'
+                total_usage:
+                  $ref: '#/components/schemas/Usage'
+                total_cost:
+                  $ref: '#/components/schemas/Cost'
+                metadata:
+                  $ref: '#/components/schemas/InferenceMetadata'
+
+    InferenceStreamRequest:
+      type: object
+      required:
+        - model
+        - messages
+      properties:
+        model:
+          type: string
+          description: 模型名称
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+          description: 消息列表
+        parameters:
+          $ref: '#/components/schemas/InferenceParameters'
+        user:
+          type: string
+          description: 用户标识
+        session_id:
+          type: string
+          description: 会话ID
+        request_id:
+          type: string
+          description: 请求ID
+
+    InferenceConfigListResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                configs:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/InferenceConfig'
+
+    InferenceConfigCreateRequest:
+      type: object
+      required:
+        - model
+        - environment
+      properties:
+        model:
+          type: string
+          description: 模型名称
+        environment:
+          type: string
+          enum: [development, staging, production]
+          description: 环境
+        default_parameters:
+          $ref: '#/components/schemas/InferenceParameters'
+        limits:
+          $ref: '#/components/schemas/InferenceLimits'
+        timeout:
+          type: integer
+          description: 超时时间（秒）
+        retry_count:
+          type: integer
+          description: 重试次数
+        fallback_model:
+          type: string
+          description: 备用模型
+        cache_enabled:
+          type: boolean
+          description: 是否启用缓存
+        cache_ttl:
+          type: integer
+          description: 缓存TTL（秒）
+
+    InferenceConfigCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                config:
+                  $ref: '#/components/schemas/InferenceConfig'
+
+    CacheStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                cache_status:
+                  $ref: '#/components/schemas/CacheStatus'
+
+    InferenceMetricsResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                metrics:
+                  $ref: '#/components/schemas/InferenceMetrics'
+                time_range:
+                  $ref: '#/components/schemas/TimeRange'
+
+    Message:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+          description: 消息角色
+        content:
+          type: string
+          description: 消息内容
+
+    InferenceParameters:
+      type: object
+      properties:
+        max_tokens:
+          type: integer
+          description: 最大令牌数
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: 温度参数
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Top-p参数
+        frequency_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          description: 频率惩罚
+        presence_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          description: 存在惩罚
+        stop:
+          type: array
+          items:
+            type: string
+          description: 停止词
+
+    Choice:
+      type: object
+      required:
+        - index
+        - message
+        - finish_reason
+      properties:
+        index:
+          type: integer
+          description: 选择索引
+        message:
+          $ref: '#/components/schemas/Message'
+        finish_reason:
+          type: string
+          enum: [stop, length, content_filter]
+          description: 完成原因
+
+    Usage:
+      type: object
+      required:
+        - prompt_tokens
+        - completion_tokens
+        - total_tokens
+      properties:
+        prompt_tokens:
+          type: integer
+          description: 提示令牌数
+        completion_tokens:
+          type: integer
+          description: 完成令牌数
+        total_tokens:
+          type: integer
+          description: 总令牌数
+
+    Cost:
+      type: object
+      required:
+        - input_cost
+        - output_cost
+        - total_cost
+      properties:
+        input_cost:
+          type: number
+          description: 输入成本
+        output_cost:
+          type: number
+          description: 输出成本
+        total_cost:
+          type: number
+          description: 总成本
+
+    InferenceMetadata:
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: 请求ID
+        session_id:
+          type: string
+          description: 会话ID
+        user:
+          type: string
+          description: 用户标识
+        response_time:
+          type: number
+          description: 响应时间（秒）
+        model_version:
+          type: string
+          description: 模型版本
+        deployment_id:
+          type: string
+          description: 部署ID
+
+    BatchRequest:
+      type: object
+      required:
+        - id
+        - messages
+      properties:
+        id:
+          type: string
+          description: 请求ID
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+          description: 消息列表
+        parameters:
+          $ref: '#/components/schemas/InferenceParameters'
+
+    BatchResult:
+      type: object
+      required:
+        - id
+        - choices
+        - usage
+        - cost
+      properties:
+        id:
+          type: string
+          description: 请求ID
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Choice'
+        usage:
+          $ref: '#/components/schemas/Usage'
+        cost:
+          $ref: '#/components/schemas/Cost'
+
+    InferenceConfig:
+      type: object
+      required:
+        - id
+        - model
+        - environment
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 配置ID
+        model:
+          type: string
+          description: 模型名称
+        environment:
+          type: string
+          enum: [development, staging, production]
+          description: 环境
+        default_parameters:
+          $ref: '#/components/schemas/InferenceParameters'
+        limits:
+          $ref: '#/components/schemas/InferenceLimits'
+        timeout:
+          type: integer
+          description: 超时时间（秒）
+        retry_count:
+          type: integer
+          description: 重试次数
+        fallback_model:
+          type: string
+          description: 备用模型
+        cache_enabled:
+          type: boolean
+          description: 是否启用缓存
+        cache_ttl:
+          type: integer
+          description: 缓存TTL（秒）
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    InferenceLimits:
+      type: object
+      properties:
+        max_tokens:
+          type: integer
+          description: 最大令牌数
+        max_requests_per_minute:
+          type: integer
+          description: 每分钟最大请求数
+        max_requests_per_hour:
+          type: integer
+          description: 每小时最大请求数
+        max_concurrent_requests:
+          type: integer
+          description: 最大并发请求数
+
+    CacheStatus:
+      type: object
+      required:
+        - enabled
+        - total_entries
+        - hit_rate
+        - miss_rate
+        - memory_usage
+        - disk_usage
+        - ttl
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用
+        total_entries:
+          type: integer
+          description: 总条目数
+        hit_rate:
+          type: number
+          description: 命中率
+        miss_rate:
+          type: number
+          description: 未命中率
+        memory_usage:
+          type: string
+          description: 内存使用量
+        disk_usage:
+          type: string
+          description: 磁盘使用量
+        ttl:
+          type: integer
+          description: TTL（秒）
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelCacheStatus'
+          description: 模型缓存状态
+
+    ModelCacheStatus:
+      type: object
+      required:
+        - model
+        - entries
+        - hit_rate
+        - memory_usage
+      properties:
+        model:
+          type: string
+          description: 模型名称
+        entries:
+          type: integer
+          description: 条目数
+        hit_rate:
+          type: number
+          description: 命中率
+        memory_usage:
+          type: string
+          description: 内存使用量
+
+    InferenceMetrics:
+      type: object
+      required:
+        - performance
+        - usage
+        - cost
+        - cache
+      properties:
+        performance:
+          $ref: '#/components/schemas/PerformanceMetrics'
+        usage:
+          $ref: '#/components/schemas/UsageMetrics'
+        cost:
+          $ref: '#/components/schemas/CostMetrics'
+        cache:
+          $ref: '#/components/schemas/CacheMetrics'
+
+    PerformanceMetrics:
+      type: object
+      required:
+        - response_time
+        - throughput
+        - success_rate
+        - error_rate
+      properties:
+        response_time:
+          $ref: '#/components/schemas/ResponseTimeMetrics'
+        throughput:
+          $ref: '#/components/schemas/ThroughputMetrics'
+        success_rate:
+          type: number
+          description: 成功率
+        error_rate:
+          type: number
+          description: 错误率
+
+    ResponseTimeMetrics:
+      type: object
+      required:
+        - avg
+        - p50
+        - p95
+        - p99
+        - max
+      properties:
+        avg:
+          type: number
+          description: 平均响应时间
+        p50:
+          type: number
+          description: 50分位数
+        p95:
+          type: number
+          description: 95分位数
+        p99:
+          type: number
+          description: 99分位数
+        max:
+          type: number
+          description: 最大响应时间
+
+    ThroughputMetrics:
+      type: object
+      required:
+        - requests_per_second
+        - tokens_per_second
+      properties:
+        requests_per_second:
+          type: number
+          description: 每秒请求数
+        tokens_per_second:
+          type: number
+          description: 每秒令牌数
+
+    UsageMetrics:
+      type: object
+      required:
+        - total_requests
+        - total_tokens
+        - unique_users
+        - active_sessions
+      properties:
+        total_requests:
+          type: integer
+          description: 总请求数
+        total_tokens:
+          type: integer
+          description: 总令牌数
+        unique_users:
+          type: integer
+          description: 唯一用户数
+        active_sessions:
+          type: integer
+          description: 活跃会话数
+
+    CostMetrics:
+      type: object
+      required:
+        - total_cost
+        - cost_per_request
+        - cost_per_token
+      properties:
+        total_cost:
+          type: number
+          description: 总成本
+        cost_per_request:
+          type: number
+          description: 每请求成本
+        cost_per_token:
+          type: number
+          description: 每令牌成本
+
+    CacheMetrics:
+      type: object
+      required:
+        - hit_rate
+        - miss_rate
+        - total_hits
+        - total_misses
+      properties:
+        hit_rate:
+          type: number
+          description: 命中率
+        miss_rate:
+          type: number
+          description: 未命中率
+        total_hits:
+          type: integer
+          description: 总命中数
+        total_misses:
+          type: integer
+          description: 总未命中数
+
+    TimeRange:
+      type: object
+      required:
+        - start_time
+        - end_time
+      properties:
+        start_time:
+          type: string
+          format: date-time
+          description: 开始时间
+        end_time:
+          type: string
+          format: date-time
+          description: 结束时间
+
+tags:
+  - name: 用户管理
+    description: 用户注册、登录、信息管理
+  - name: 项目管理
+    description: 项目创建、配置、成员管理
+  - name: 模型管理
+    description: 模型注册、版本管理、部署管理
+  - name: 推理服务
+    description: 模型推理、配置管理、监控告警
+  - name: 成本管理
+    description: 成本记录、预算管理、优化建议
+  - name: 监控日志
+    description: 监控指标、告警规则、系统日志
+  - name: 评测管理
+    description: 评测任务、测试数据集、评测结果
+  - name: 知识库管理
+    description: 知识库管理、文档管理、检索服务
+
+externalDocs:
+  description: LLMOps Platform Documentation
+  url: https://docs.llmops.com

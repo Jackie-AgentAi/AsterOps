@@ -1,0 +1,196 @@
+# LLMOps生产环境告警规则
+groups:
+  - name: llmops-infrastructure
+    rules:
+      # 服务可用性告警
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "服务 {{ $labels.job }} 不可用"
+          description: "服务 {{ $labels.job }} 已经不可用超过1分钟"
+
+      # 高CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU使用率过高"
+          description: "实例 {{ $labels.instance }} CPU使用率超过80%，当前值: {{ $value }}%"
+
+      # 高内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 内存使用率超过85%，当前值: {{ $value }}%"
+
+      # 高磁盘使用率告警
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "实例 {{ $labels.instance }} 磁盘使用率超过90%，当前值: {{ $value }}%"
+
+  - name: llmops-services
+    rules:
+      # 微服务响应时间告警
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务响应时间过长"
+          description: "服务 {{ $labels.job }} 95%响应时间超过5秒，当前值: {{ $value }}秒"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务错误率过高"
+          description: "服务 {{ $labels.job }} 错误率超过5%，当前值: {{ $value }}%"
+
+      # 服务重启告警
+      - alert: ServiceRestart
+        expr: increase(process_start_time_seconds[10m]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "服务重启"
+          description: "服务 {{ $labels.job }} 在最近10分钟内重启了 {{ $value }} 次"
+
+  - name: llmops-database
+    rules:
+      # 数据库连接数告警
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接数过高"
+          description: "数据库 {{ $labels.datname }} 连接数超过80，当前值: {{ $value }}"
+
+      # 数据库慢查询告警
+      - alert: SlowDatabaseQueries
+        expr: rate(pg_stat_database_tup_returned[5m]) / rate(pg_stat_database_tup_fetched[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库慢查询"
+          description: "数据库 {{ $labels.datname }} 查询效率低，返回/获取比例: {{ $value }}"
+
+  - name: llmops-cache
+    rules:
+      # Redis内存使用率告警
+      - alert: HighRedisMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis实例内存使用率超过85%，当前值: {{ $value }}%"
+
+      # Redis连接数告警
+      - alert: HighRedisConnections
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis连接数过高"
+          description: "Redis连接数超过100，当前值: {{ $value }}"
+
+  - name: llmops-business
+    rules:
+      # 推理请求失败率告警
+      - alert: HighInferenceFailureRate
+        expr: rate(inference_requests_total{status="failed"}[5m]) / rate(inference_requests_total[5m]) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "推理请求失败率过高"
+          description: "推理服务失败率超过10%，当前值: {{ $value }}%"
+
+      # 模型加载失败告警
+      - alert: ModelLoadFailure
+        expr: increase(model_load_failures_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "模型加载失败"
+          description: "模型 {{ $labels.model_name }} 加载失败"
+
+      # 成本超预算告警
+      - alert: CostOverBudget
+        expr: cost_current_amount / cost_budget_amount * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "成本接近预算"
+          description: "项目 {{ $labels.project_id }} 成本已达到预算的 {{ $value }}%"
+
+  - name: llmops-security
+    rules:
+      # 异常登录告警
+      - alert: AbnormalLogin
+        expr: increase(login_attempts_total{status="failed"}[5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "异常登录尝试"
+          description: "用户 {{ $labels.user_id }} 在5分钟内失败登录 {{ $value }} 次"
+
+      # API限流触发告警
+      - alert: APIRateLimitExceeded
+        expr: rate(rate_limit_exceeded_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "API限流触发"
+          description: "API限流被触发，服务: {{ $labels.service }}"
+
+  - name: llmops-performance
+    rules:
+      # 高并发告警
+      - alert: HighConcurrency
+        expr: http_requests_in_flight > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高并发请求"
+          description: "服务 {{ $labels.job }} 并发请求数超过100，当前值: {{ $value }}"
+
+      # 队列积压告警
+      - alert: QueueBacklog
+        expr: inference_queue_size > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "推理队列积压"
+          description: "推理队列积压超过50个请求，当前值: {{ $value }}"
