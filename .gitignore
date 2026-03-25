@@ -99,3 +99,6 @@ secrets/
 # 备份文件
 backup/
 *.backup
+
+# 第三方工具目录
+openclaw/
