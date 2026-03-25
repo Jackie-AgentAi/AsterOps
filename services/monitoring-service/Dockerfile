@@ -31,12 +31,16 @@ RUN apt-get update && apt-get install -y \
 RUN useradd --create-home --shell /bin/bash appuser && \
     mkdir -p /app/data /app/logs /app/configs
 
-# 复制依赖文件（先复制依赖文件，利用Docker缓存）
-COPY requirements-simple.txt requirements.txt
+# 配置pip使用国内镜像源加速
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
+    pip install --upgrade pip setuptools wheel
 
-# 使用阿里云PyPI镜像源加速pip安装
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set global.trusted-host mirrors.aliyun.com && \
+# 复制依赖文件（先复制依赖文件，利用Docker缓存）
+COPY requirements.txt .
+
+# 安装Python依赖（利用缓存，使用预编译wheel加速）
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt || \
     pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码（放在最后，避免代码变更影响依赖缓存）

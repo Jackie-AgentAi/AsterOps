@@ -22,12 +22,17 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# 复制依赖文件
-COPY requirements-simple.txt .
+# 配置pip使用国内镜像源加速
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
+    pip install --upgrade pip setuptools wheel
 
-# 安装Python依赖
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-simple.txt
+# 复制依赖文件（先复制依赖文件以利用Docker缓存）
+COPY requirements.txt .
+
+# 安装Python依赖（利用缓存，使用预编译wheel加速）
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt || \
+    pip install --no-cache-dir -r requirements.txt
 
 # ===================
 # 运行阶段
@@ -72,5 +77,5 @@ EXPOSE 8084
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8084/health || exit 1
 
-# 启动应用
-CMD ["uvicorn", "app.main_simple:app", "--host", "0.0.0.0", "--port", "8084", "--workers", "4"]
+# 启动应用（使用完整实现）
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8084", "--workers", "4"]

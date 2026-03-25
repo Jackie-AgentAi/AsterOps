@@ -102,7 +102,9 @@ services:
 
   # 推理服务
   inference-service:
-    build: ./services/inference-service
+    build:
+      context: ./services/inference-service
+      dockerfile: Dockerfile.prod
     ports:
       - "8084:8084"
     environment:

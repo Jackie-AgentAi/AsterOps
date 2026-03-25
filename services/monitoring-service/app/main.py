@@ -15,6 +15,7 @@ from app.core.database import init_db
 from app.core.middleware import LoggingMiddleware, MetricsMiddleware
 from app.core.exceptions import MonitoringServiceException, map_to_http_exception
 from app.api.v1.monitoring import router as monitoring_router
+from prometheus_client import make_asgi_app
 
 # 设置日志
 logger = setup_logging()
@@ -54,6 +55,10 @@ app.add_middleware(
 # 添加自定义中间件
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(MetricsMiddleware)
+
+# 添加Prometheus指标
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 # 全局异常处理器
 @app.exception_handler(MonitoringServiceException)
